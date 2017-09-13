@@ -146,7 +146,7 @@ def export_loop(cls, instance_or_dict, field_converter,
         This function overrides ``serialize_when_none`` values found either on
         ``cls`` or an instance.
     """
-    data = {}
+    data = OrderedDict()
 
     # Translate `role` into `gottago` function
     gottago = wholelist()
