@@ -282,10 +282,12 @@ class Model(object):
         """
         return convert(self.__class__, raw_data, **kw)
 
-    def to_native(self, role=None, context=None):
-        return to_native(self.__class__, self, role=role, context=context)
+    def to_native(self, role=None, raise_error_on_role=True, context=None):
+        return to_native(self.__class__, self, role=role,
+                         raise_error_on_role=raise_error_on_role,
+                         context=context)
 
-    def to_primitive(self, role=None, context=None):
+    def to_primitive(self, role=None, raise_error_on_role=True, context=None):
         """Return data as it would be validated. No filtering of output unless
         role is defined.
 
@@ -293,12 +295,16 @@ class Model(object):
             Filter output by a specific role
 
         """
-        return to_primitive(self.__class__, self, role=role, context=context)
+        return to_primitive(self.__class__, self, role=role,
+                            raise_error_on_role=raise_error_on_role,
+                            context=context)
 
-    def serialize(self, role=None, context=None):
-        return self.to_primitive(role=role, context=context)
+    def serialize(self, role=None, raise_error_on_role=True, context=None):
+        return self.to_primitive(role=role,
+                                 raise_error_on_role=raise_error_on_role,
+                                 context=context)
 
-    def flatten(self, role=None, prefix=""):
+    def flatten(self, role=None, raise_error_on_role=True, prefix=""):
         """
         Return data as a pure key-value dictionary, where the values are
         primitive types (string, bool, int, long).
@@ -308,7 +314,9 @@ class Model(object):
         :param prefix:
             A prefix to use for keynames during flattening.
         """
-        return flatten(self.__class__, self, role=role, prefix=prefix)
+        return flatten(self.__class__, self, role=role,
+                       raise_error_on_role=raise_error_on_role,
+                       prefix=prefix)
 
     @classmethod
     def from_flat(cls, data):
