@@ -146,17 +146,30 @@ def export_loop(cls, instance_or_dict, field_converter,
         This function overrides ``serialize_when_none`` values found either on
         ``cls`` or an instance.
     """
+    if role is None:
+        role = []
+    elif isinstance(role, str):
+        role = [role]
+
     data = OrderedDict()
 
     # Translate `role` into `gottago` function
-    gottago = wholelist()
-    if hasattr(cls, '_options') and role in cls._options.roles:
-        gottago = cls._options.roles[role]
-    elif role and raise_error_on_role:
-        error_msg = u'%s Model has no role "%s"'
-        raise ValueError(error_msg % (cls.__name__, role))
-    else:
-        gottago = cls._options.roles.get("default", gottago)
+    gottago = []
+    if hasattr(cls, '_options'):
+        for r in role:
+            filter_ = cls._options.roles.get(r)
+            if filter_ is None:
+                continue
+            gottago.append(filter_)
+
+    if not gottago:
+        if role and raise_error_on_role:
+            error_msg = u'%s Model has no role "%s"'
+            raise ValueError(error_msg % (cls.__name__, role))
+        else:
+            gottago = cls._options.roles.get("default", [wholelist()])
+            if not isinstance(gottago, list):
+                gottago = [gottago]
 
     fields_order = (getattr(cls._options, 'fields_order', None)
                     if hasattr(cls, '_options') else None)
@@ -165,7 +178,12 @@ def export_loop(cls, instance_or_dict, field_converter,
         serialized_name = field.serialized_name or field_name
 
         # Skipping this field was requested
-        if gottago(field_name, value):
+        skip = False
+        for filter_ in gottago:
+            if filter_(field_name, value):
+                skip = True
+                break
+        if skip:
             continue
 
         # Value found, apply transformation and store it
