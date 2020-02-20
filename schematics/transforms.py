@@ -178,11 +178,9 @@ def export_loop(cls, instance_or_dict, field_converter,
         serialized_name = field.serialized_name or field_name
 
         # Skipping this field was requested
-        skip = False
+        skip = True
         for filter_ in gottago:
-            if filter_(field_name, value):
-                skip = True
-                break
+            skip &= filter_(field_name, value)
         if skip:
             continue
 
