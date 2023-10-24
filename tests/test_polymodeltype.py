@@ -1,9 +1,8 @@
 import pytest
 
-from schematics.models import Model, DataError
+from schematics.models import Model
 from schematics.types import StringType
-from schematics.types.compound import PolyModelType, ListType
-from schematics.util import get_all_subclasses
+from schematics.types.compound import PolyModelType, get_all_subclasses
 
 
 class A(Model): # fallback model (doesn't define a claim method)
@@ -14,7 +13,6 @@ class Aaa(A):
 
 class B(A):
     stringB = StringType()
-    regexp_test = StringType(regex='^[0-9]$', required=False)
     @classmethod
     def _claim_polymorphic(cls, data):
         return data.get('stringB') == 'bbb'
@@ -41,7 +39,7 @@ class Foo(Model):
     base   = PolyModelType(A)       # accepts any subclass for import and export
     strict = PolyModelType([A, B])  # accepts [A, B] for import and export
     nfb    = PolyModelType([B, C])  # no fallback since A not present
-    cfn    = PolyModelType([B, C], claim_function=claim_func)
+    cfn    = PolyModelType([B, C], claim_function=claim_func, strict=False)
 
 
 def test_get_all_subclasses():
@@ -87,7 +85,7 @@ def test_enumerated_polymorphic(): # strict
 
 def test_external_claim_function(): # cfn
 
-    foo = Foo({'cfn': {'stringB': 'bbb', 'stringC': 'ccc'}}, strict=False)
+    foo = Foo({'cfn': {'stringB': 'bbb', 'stringC': 'ccc'}})
     assert type(foo.cfn) is B
 
 def test_multiple_matches():
@@ -119,25 +117,3 @@ def test_refuse_unrelated_export():
         foo = Foo()
         foo.strict = Aaa()
         foo.to_primitive()
-
-
-def test_specify_model_by_name():
-
-    class M(Model):
-        single = PolyModelType('M')
-        multi = PolyModelType([A, 'M', C])
-        nested = ListType(ListType(PolyModelType('M')))
-
-    assert M.single.is_allowed_model(M())
-    assert M.multi.is_allowed_model(M())
-    assert M.nested.field.field.is_allowed_model(M())
-
-
-def test_validate_recursively():
-    # Should validate
-    foo = Foo({'strict': {'stringB': 'bbb', 'regexp_test': '1'}})
-    foo.validate()
-
-    foo = Foo({'strict': {'stringB': 'bbb', 'regexp_test': 'a'}})
-    with pytest.raises(DataError):
-        foo.validate()

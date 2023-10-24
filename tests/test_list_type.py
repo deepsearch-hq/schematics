@@ -1,13 +1,9 @@
-from collections import OrderedDict
-
 import pytest
 
 from schematics.models import Model
 from schematics.types import IntType, StringType
 from schematics.types.compound import ModelType, ListType
-from schematics.exceptions import (
-    ConversionError, ValidationError, StopValidationError, DataError,
-    MockCreationError)
+from schematics.exceptions import ValidationError, StopValidation
 
 
 def test_list_field():
@@ -127,19 +123,19 @@ def test_validation_with_size_limits():
     class Card(Model):
         users = ListType(ModelType(User), min_size=1, max_size=2, required=True)
 
-    with pytest.raises(DataError) as exception:
+    with pytest.raises(ValidationError) as exception:
         c = Card({"users": None})
         c.validate()
 
     assert exception.value.messages['users'] == [u'This field is required.']
 
-    with pytest.raises(DataError) as exception:
+    with pytest.raises(ValidationError) as exception:
         c = Card({"users": []})
         c.validate()
 
     assert exception.value.messages['users'] == [u'Please provide at least 1 item.']
 
-    with pytest.raises(DataError) as exception:
+    with pytest.raises(ValidationError) as exception:
         c = Card({"users": [User(), User(), User()]})
         c.validate()
 
@@ -154,14 +150,11 @@ def test_list_field_required():
         "ids": []
     })
 
-    c.ids = []
-    c.validate()
-
     c.ids = [1]
     c.validate()
 
     c.ids = [None]
-    with pytest.raises(DataError):
+    with pytest.raises(ValidationError):
         c.validate()
 
 
@@ -172,18 +165,6 @@ def test_list_field_convert():
     c = User({'ids': ["1", "2"]})
 
     assert c.ids == [1, 2]
-
-
-def test_list_coercion():
-    field = ListType(StringType)
-    assert field(('foobar',)) == ['foobar']
-    assert field(set(('foobar',))) == ['foobar']
-    with pytest.raises(ConversionError):
-        field({1: 'bar', 2: 'baz', 0: 'foo'})
-    with pytest.raises(ConversionError):
-        field('foobar')
-    with pytest.raises(ConversionError):
-        field(None)
 
 
 def test_list_model_field():
@@ -197,7 +178,7 @@ def test_list_model_field():
     c = Card(data)
 
     c.users = None
-    with pytest.raises(DataError) as exception:
+    with pytest.raises(ValidationError) as exception:
         c.validate()
 
     errors = exception.value.messages
@@ -213,53 +194,24 @@ def test_list_model_field_exception_with_full_message():
 
     g = Group({'users': [{'name': "ToLongName"}]})
 
-    with pytest.raises(DataError) as exception:
+    with pytest.raises(ValidationError) as exception:
         g.validate()
-    assert exception.value.messages == {'users': {0: {'name': ['String value is too long.']}}}
+    assert exception.value.messages == {'users': [{'name': ['String value is too long.']}]}
+
+
+def test_stop_validation():
+    def raiser(x):
+        raise StopValidation({'something': 'bad'})
+
+    lst = ListType(StringType(), validators=[raiser])
+
+    with pytest.raises(ValidationError) as exc:
+        lst.validate('foo@bar.com')
+
+    assert exc.value.messages == {'something': 'bad'}
 
 
 def test_compound_fields():
     comments = ListType(ListType, compound_field=StringType)
 
     assert isinstance(comments.field, ListType)
-
-
-def test_mock_object():
-    assert type(ListType(IntType, required=True).mock()) is list
-
-    assert ListType(
-        StringType, min_size=0, max_size=0, required=True,
-    ).mock() == []
-
-    with pytest.raises(MockCreationError) as exception:
-        ListType(IntType, min_size=10, max_size=1, required=True).mock()
-
-
-def test_mock_object_with_model_type():
-    class User(Model):
-        name = StringType(required=True)
-        age = IntType(required=True)
-
-    assert isinstance(
-        ListType(ModelType(User), min_size=1, required=True).mock()[-1],
-        User
-    )
-
-
-def test_issue_453_list_model_field_recursive_import():
-    class User(Model):
-        name = StringType()
-
-    class Card(Model):
-        id = IntType(default=1)
-        users = ListType(ModelType(User), min_size=1, required=True)
-
-    card = Card()
-    card.users = [
-        User({'name': 'foo'}),
-        User({'name': 'bar'}),
-        User({'name': 'baz'}),
-    ]
-    card.import_data({'id': '2', 'users': [User({'name': 'xyz'})]},
-        recursive=True)
-    assert card.serialize() == {'id': 2, 'users': [{'name': 'xyz'}]}

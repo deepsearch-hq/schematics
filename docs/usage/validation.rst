@@ -18,7 +18,7 @@ Here's a quick glance and some of the ways you can tweak validation.
   ...     bio = StringType(required=True)
   ...
   >>> p = Person()
-  >>> p.name = 'Fiona Apple'
+  >>> p.name = 'Paul Eipper'
   >>> p.validate()
   Traceback (most recent call last):
   ...

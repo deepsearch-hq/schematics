@@ -3,8 +3,7 @@ import pytest
 from schematics.models import Model
 from schematics.types import IntType, StringType
 from schematics.types.compound import ModelType, ListType
-from schematics.exceptions import DataError
-from schematics.util import ImportStringError
+from schematics.exceptions import ValidationError, ModelConversionError
 
 
 def test_simple_embedded_models():
@@ -15,6 +14,10 @@ def test_simple_embedded_models():
         id = IntType()
         location = ModelType(Location)
 
+    r = repr(Player.location)
+    assert r.startswith("<schematics.types.compound.ModelType object at 0x")
+    #assert r.endswith("for <class 'tests.test_model_type.Location'>>") #this assertion not compatible with PY3
+
     p = Player(dict(id=1, location={"country_code": "US"}))
 
     assert p.id == 1
@@ -24,6 +27,8 @@ def test_simple_embedded_models():
 
     assert isinstance(p.location, Location)
     assert p.location.country_code == "IS"
+
+    assert Player.location.to_native(None) is None
 
 
 def test_simple_embedded_models_is_none():
@@ -90,7 +95,7 @@ def test_raises_validation_error_on_init_with_partial_submodel():
     u = User({'name': 'Arthur'})
     c = Card({'user': u})
 
-    with pytest.raises(DataError):
+    with pytest.raises(ValidationError):
         c.validate()
 
 
@@ -184,131 +189,5 @@ def test_conversion_error_recursive_overhead():
         next_model = Recursive
         data = {'x': data}
 
-    with pytest.raises(DataError):
+    with pytest.raises(ModelConversionError):
         next_model(data)
-
-
-def test_mock_object():
-    class User(Model):
-        name = StringType(required=True)
-        age = IntType(required=True)
-
-    assert ModelType(User, required=True).mock() is not None
-
-
-def test_specify_model_by_name():
-
-    class M(Model):
-        to_one = ModelType('M')
-        to_many = ListType(ModelType('M'))
-        matrix = ListType(ListType(ModelType('M')))
-
-    assert M.to_one.model_class is M
-    assert M.to_many.field.model_class is M
-    assert M.matrix.field.field.model_class is M
-
-
-def test_model_context_pass_to_type():
-    from schematics.types import BaseType
-    from schematics.datastructures import Context
-
-    class CustomType(BaseType):
-
-        def to_native(self, value, context=None):
-            suffix = context.suffix
-            return str(value) + suffix
-
-        def to_primitive(self, value, context=None):
-            suffix = context.suffix
-            return value[:-len(suffix)]
-
-    class Thing(Model):
-        x = CustomType()
-
-    context = {'suffix': 'z'}
-    input = {'x': 'thingie'}
-    thing = Thing(input, context=context)
-    assert thing.x == 'thingiez'
-    assert thing.to_primitive(context=context) == {'x': 'thingie'}
-    # try it with a Context object
-    model_context = Context(suffix='z!')
-    thing2 = Thing(input, context=model_context)
-    assert thing2.x == 'thingiez!'
-    export_context = Context(suffix='z!')
-    assert thing2.to_primitive(context=export_context) == {'x': 'thingie'}
-    with pytest.raises(AttributeError):
-        # can't reuse the same Context object as was used for model
-        # TODO this may be unexpected to the uninitiated; a custom exception
-        #      could explain it better.
-        thing2.to_primitive(context=model_context)
-
-
-def test_model_app_data_pass_to_type():
-    from schematics.types import BaseType
-
-    class CustomType(BaseType):
-
-        def to_native(self, value, context=None):
-            suffix = context.app_data['suffix']
-            return str(value) + suffix
-
-        def to_primitive(self, value, context=None):
-            suffix = context.app_data['suffix']
-            return value[:-len(suffix)]
-
-    class Thing(Model):
-        x = CustomType()
-
-    app_data = {'suffix': 'z'}
-    input = {'x': 'thingie'}
-    thing = Thing(input, app_data=app_data)
-    assert thing.x == 'thingiez'
-    assert thing.to_primitive(app_data=app_data) == {'x': 'thingie'}
-
-
-class OuterModel:
-    class InnerModel(Model):
-        test = StringType()
-
-
-def test_deep_string_search():
-    class TestModel(Model):
-        deep_model = ModelType('test_model_type.OuterModel.InnerModel')
-
-    test = TestModel(dict(deep_model=dict(test='Abc')))
-    assert test.validate() is None
-
-    class TestModel2(Model):
-        invalid_model = ModelType('a.c.d.e')
-    with pytest.raises(ImportStringError):
-        TestModel2(dict(invalid_model=dict(a='1')))
-
-
-def test_recursive_string_self_reference():
-    class RecursiveTestModel(Model):
-        recursive_model = ModelType('RecursiveTestModel')
-        test = StringType()
-
-    test = RecursiveTestModel(dict(recursive_model=dict(test='Abc')))
-    assert test.validate() is None
-    assert test.recursive_model.test == 'Abc'
-
-
-def test_circular_string_reference():
-    class TestModel1(Model):
-        model2 = ModelType('TestModel2')
-        name = StringType()
-
-    class TestModel2(Model):
-        model1 = ModelType('TestModel1')
-        description = StringType()
-
-    data1 = {'name': 'Test1'}
-    data2 = {'description': 'Test2', 'model1': data1}
-
-    # TODO: we might want to support locals import late binding someday/somehow
-    with pytest.raises(ImportStringError):
-        test = TestModel1({
-            'name': 'Root',
-            'model2': data2
-        })

@@ -2,17 +2,16 @@
 a part of the pymongo distribution.
 """
 
-from __future__ import unicode_literals, absolute_import
+from schematics.types import BaseType
+from schematics.exceptions import ConversionError, ValidationError
 
 import bson
 
-from ..common import *
-from ..translator import _
-from ..types import BaseType
-from ..exceptions import ConversionError
-
-__all__ = ['ObjectIdType']
-
+try:
+    unicode #PY2
+except:
+    import codecs
+    unicode = str #PY3
 
 class ObjectIdType(BaseType):
 
@@ -24,7 +23,7 @@ class ObjectIdType(BaseType):
     """
 
     MESSAGES = {
-        'convert': _("Couldn't interpret value as an ObjectId."),
+        'convert': u"Couldn't interpret value as an ObjectId.",
     }
 
     def __init__(self, auto_fill=False, **kwargs):
@@ -34,7 +33,7 @@ class ObjectIdType(BaseType):
     def to_native(self, value, context=None):
         if not isinstance(value, bson.objectid.ObjectId):
             try:
-                value = bson.objectid.ObjectId(str(value))
+                value = bson.objectid.ObjectId(unicode(value))
             except bson.objectid.InvalidId:
                 raise ConversionError(self.messages['convert'])
         return value
@@ -42,6 +41,10 @@ class ObjectIdType(BaseType):
     def to_primitive(self, value, context=None):
         return str(value)
 
-if PY2:
-    # Python 2 names cannot be unicode
-    __all__ = [n.encode('ascii') for n in __all__]
+    def validate_id(self, value):
+        if not isinstance(value, bson.objectid.ObjectId):
+            try:
+                value = bson.objectid.ObjectId(unicode(value))
+            except Exception:
+                raise ValidationError('Invalid ObjectId')
+        return True

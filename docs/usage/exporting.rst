@@ -221,7 +221,7 @@ Here is what happens when we call ``to_primitive()`` on it.
 Customizing Output
 ==================
 
-Schematics offers many ways to customize the behavior of serialization:
+Schematics offers many ways to customize the behavior of serilaizataion
 
 
 .. _exporting_roles:

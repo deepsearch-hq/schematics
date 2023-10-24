@@ -145,8 +145,10 @@ Then, from Python, an insert statement could look like this:
 
 ::
 
-  >>> query = "INSERT INTO weatherreports (city, taken_at, temperature) VALUES (%s, %s, %s);"
-  >>> params = (wr.city, wr.taken_at, wr.temperature)
+  >>> q = "INSERT INTO weatherreports (city, taken_at, temperature) VALUES ('%s', '%s', '%s');"
+  >>> query = q % (wr.city, wr.taken_at, wr.temperature)
+  >>> query
+  u"INSERT INTO temps (city, taken_at, temperature) VALUES ('NYC', '2013-08-29 17:49:41.284189', '80');"
 
 Let's insert that into PostgreSQL using the ``psycopg2`` driver.
 
@@ -155,7 +157,7 @@ Let's insert that into PostgreSQL using the ``psycopg2`` driver.
   >>> import psycopg2
   >>> db_conn = psycopg2.connect("host='localhost' dbname='mydb'")
   >>> cursor = db_conn.cursor()
-  >>> cursor.execute(query, params)
+  >>> cursor.execute(query)
   >>> db_conn.commit()
 
 
